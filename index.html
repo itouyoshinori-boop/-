@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>オンラインリアルタイムテニス</title>
+  <title>ソロプレイ・テニスゲーム</title>
   <style>
     body {
       background-color: #222;
@@ -27,7 +27,7 @@
       height: auto;
     }
     .status {
-      font-size: 16px;
+      font-size: 18px;
       margin-bottom: 8px;
       color: #00ffcc;
       font-weight: bold;
@@ -50,158 +50,144 @@
       touch-action: manipulation;
     }
     .btn:active { background: #666; }
-    .reset-btn {
-      margin-top: 15px;
-      padding: 8px 16px;
-      background: #ff4444;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
 
-  <h1>オンライン2Dテニス</h1>
-  <div id="status" class="status">接続中...</div>
+  <h1>ソロプレイ 2Dテニス</h1>
+  <div class="status" id="statusText">YOU（青） vs CPU（赤） [10点先取]</div>
   
   <div id="gameContainer">
     <canvas id="gameCanvas" width="600" height="400"></canvas>
   </div>
 
-  <!-- スマホ用タッチボタン -->
   <div class="controls">
     <button class="btn" id="upBtn">▲</button>
     <button class="btn" id="downBtn">▼</button>
   </div>
 
-  <button class="reset-btn" id="resetBtn">部屋をリセット</button>
-
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-    // Firebase設定（ご自身のAPIキー等に差し替えてください）
-    const firebaseConfig = {
-      apiKey: "AIzaSyDummyKeyForNetKeijiban",
-      authDomain: "net-keijiban.firebaseapp.com",
-      projectId: "net-keijiban",
-      storageBucket: "net-keijiban.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const gameRef = doc(db, "games", "tennis_room");
-
+  <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const statusEl = document.getElementById("status");
+    const statusText = document.getElementById("statusText");
 
-    let playerRole = null;
-    const initialGameState = {
-      p1Y: 160, p2Y: 160,
-      ballX: 300, ballY: 200,
-      ballVx: 4, ballVy: 4,
-      score1: 0, score2: 0,
-      p1Online: false, p2Online: false
-    };
-    let gameState = { ...initialGameState };
+    let p1Y = 160;
+    let cpuY = 160;
+    let ballX = 300;
+    let ballY = 200;
+    let ballVx = 5;
+    let ballVy = 5;
+    let scorePlayer = 0;
+    let scoreCpu = 0;
+    let isGameOver = false;
 
     const paddleHeight = 80;
     const paddleWidth = 10;
-
-    async function joinGame() {
-      onSnapshot(gameRef, (snapshot) => {
-        if (snapshot.exists()) {
-          gameState = { ...gameState, ...snapshot.data() };
-          draw();
-        } else {
-          setDoc(gameRef, initialGameState);
-        }
-      });
-
-      setTimeout(async () => {
-        if (!gameState.p1Online) {
-          playerRole = 'p1';
-          await updateDoc(gameRef, { p1Online: true });
-          statusEl.textContent = "あなたは PLAYER 1（左）です。対戦相手を待っています...";
-        } else if (!gameState.p2Online) {
-          playerRole = 'p2';
-          await updateDoc(gameRef, { p2Online: true });
-          statusEl.textContent = "あなたは PLAYER 2（右）です。対戦開始！";
-        } else {
-          statusEl.textContent = "満員です（観戦モード）";
-        }
-      }, 1000);
-    }
+    const cpuSpeed = 3.8;
+    const WINNING_SCORE = 10; // 10点で勝利
 
     function moveUp() {
-      if (!playerRole) return;
-      if (playerRole === 'p1') {
-        gameState.p1Y = Math.max(0, gameState.p1Y - 20);
-        updateDoc(gameRef, { p1Y: gameState.p1Y });
-      } else if (playerRole === 'p2') {
-        gameState.p2Y = Math.max(0, gameState.p2Y - 20);
-        updateDoc(gameRef, { p2Y: gameState.p2Y });
-      }
+      if (isGameOver) return;
+      p1Y = Math.max(0, p1Y - 25);
     }
 
     function moveDown() {
-      if (!playerRole) return;
-      if (playerRole === 'p1') {
-        gameState.p1Y = Math.min(canvas.height - paddleHeight, gameState.p1Y + 20);
-        updateDoc(gameRef, { p1Y: gameState.p1Y });
-      } else if (playerRole === 'p2') {
-        gameState.p2Y = Math.min(canvas.height - paddleHeight, gameState.p2Y + 20);
-        updateDoc(gameRef, { p2Y: gameState.p2Y });
-      }
+      if (isGameOver) return;
+      p1Y = Math.min(canvas.height - paddleHeight, p1Y + 25);
     }
 
-    // キーボード＆ボタンイベント
     window.addEventListener("keydown", (e) => {
+      if (isGameOver && e.key === ' ') {
+        restartGame();
+        return;
+      }
       if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') moveUp();
       if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') moveDown();
     });
 
     document.getElementById("upBtn").addEventListener("click", moveUp);
     document.getElementById("downBtn").addEventListener("click", moveDown);
-
-    document.getElementById("resetBtn").addEventListener("click", async () => {
-      await setDoc(gameRef, initialGameState);
-      location.reload();
+    canvas.addEventListener("click", () => {
+      if (isGameOver) restartGame();
     });
 
-    // ボール計算（P1メイン）
-    setInterval(() => {
-      if (playerRole === 'p1' && gameState.p1Online && gameState.p2Online) {
-        let bx = gameState.ballX + gameState.ballVx;
-        let by = gameState.ballY + gameState.ballVy;
+    function gameLoop() {
+      if (!isGameOver) {
+        // ボール移動
+        ballX += ballVx;
+        ballY += ballVy;
 
-        if (by <= 0 || by >= canvas.height) gameState.ballVy *= -1;
+        // 上下壁バウンド
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballVy *= -1;
+        }
 
-        if (bx <= 20 && by >= gameState.p1Y && by <= gameState.p1Y + paddleHeight) gameState.ballVx *= -1;
-        if (bx >= canvas.width - 20 && by >= gameState.p2Y && by <= gameState.p2Y + paddleHeight) gameState.ballVx *= -1;
+        // プレイヤー（左）打ち返し ＆ 速度少しアップ
+        if (ballX <= 20 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
+          ballVx = Math.abs(ballVx) * 1.1; // 1.1倍に加速
+          ballVy *= 1.1;
+        }
 
-        if (bx <= 0) { gameState.score2++; bx = 300; by = 200; }
-        else if (bx >= canvas.width) { gameState.score1++; bx = 300; by = 200; }
+        // CPU（右）移動
+        const cpuCenter = cpuY + paddleHeight / 2;
+        if (cpuCenter < ballY - 10) {
+          cpuY = Math.min(canvas.height - paddleHeight, cpuY + cpuSpeed);
+        } else if (cpuCenter > ballY + 10) {
+          cpuY = Math.max(0, cpuY - cpuSpeed);
+        }
 
-        gameState.ballX = bx;
-        gameState.ballY = by;
+        // CPU（右）打ち返し ＆ 速度少しアップ
+        if (ballX >= canvas.width - 20 && ballY >= cpuY && ballY <= cpuY + paddleHeight) {
+          ballVx = -Math.abs(ballVx) * 1.1; // 1.1倍に加速
+          ballVy *= 1.1;
+        }
 
-        updateDoc(gameRef, {
-          ballX: bx, ballY: by,
-          ballVx: gameState.ballVx, ballVy: gameState.ballVy,
-          score1: gameState.score1, score2: gameState.score2
-        });
+        // 得点判定
+        if (ballX <= 0) {
+          scoreCpu++;
+          checkWinCondition();
+          resetBall();
+        } else if (ballX >= canvas.width) {
+          scorePlayer++;
+          checkWinCondition();
+          resetBall();
+        }
       }
-    }, 30);
+
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function checkWinCondition() {
+      if (scorePlayer >= WINNING_SCORE) {
+        isGameOver = true;
+        statusText.textContent = "🎉 GAME CLEAR! あなたの勝ちです！";
+      } else if (scoreCpu >= WINNING_SCORE) {
+        isGameOver = true;
+        statusText.textContent = "💀 GAME OVER... CPUの勝ちです";
+      }
+    }
+
+    function resetBall() {
+      ballX = 300;
+      ballY = 200;
+      // 速度を初期値(5)に戻す
+      ballVx = (Math.random() > 0.5 ? 1 : -1) * 5;
+      ballVy = (Math.random() > 0.5 ? 1 : -1) * 5;
+    }
+
+    function restartGame() {
+      scorePlayer = 0;
+      scoreCpu = 0;
+      isGameOver = false;
+      statusText.textContent = "YOU（青） vs CPU（赤） [10点先取]";
+      resetBall();
+    }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 中央線
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(canvas.width / 2, 0);
@@ -210,24 +196,45 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // スコア
       ctx.font = "32px sans-serif";
       ctx.fillStyle = "#fff";
-      ctx.fillText(gameState.score1, 200, 50);
-      ctx.fillText(gameState.score2, 380, 50);
+      ctx.fillText(scorePlayer, 200, 50);
+      ctx.fillText(scoreCpu, 380, 50);
 
+      // プレイヤー（左）
       ctx.fillStyle = "#00aaff";
-      ctx.fillRect(10, gameState.p1Y, paddleWidth, paddleHeight);
+      ctx.fillRect(10, p1Y, paddleWidth, paddleHeight);
 
+      // CPU（右）
       ctx.fillStyle = "#ff4444";
-      ctx.fillRect(canvas.width - 20, gameState.p2Y, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - 20, cpuY, paddleWidth, paddleHeight);
 
+      // ボール
       ctx.fillStyle = "#ffff00";
       ctx.beginPath();
-      ctx.arc(gameState.ballX, gameState.ballY, 8, 0, Math.PI * 2);
+      ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
       ctx.fill();
+
+      // 勝敗画面テキスト
+      if (isGameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = "36px sans-serif";
+        ctx.fillStyle = scorePlayer >= WINNING_SCORE ? "#00ffcc" : "#ff4444";
+        ctx.textAlign = "center";
+        const msg = scorePlayer >= WINNING_SCORE ? "GAME CLEAR!!" : "GAME OVER";
+        ctx.fillText(msg, canvas.width / 2, 180);
+
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("画面タップ または スペースキーでリスタート", canvas.width / 2, 240);
+        ctx.textAlign = "start";
+      }
     }
 
-    joinGame();
+    gameLoop();
   </script>
 </body>
 </html>
