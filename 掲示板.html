@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>リアルタイムオンライン掲示板</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      max-width: 650px;
+      margin: 30px auto;
+      padding: 0 15px;
+      background: #f0f2f5;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #1a1a1a;
+      margin-bottom: 25px;
+      font-size: 1.8rem;
+    }
+    .form-box {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      margin-bottom: 25px;
+    }
+    input, textarea {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #007bff;
+    }
+    button.send-btn {
+      width: 100%;
+      padding: 12px;
+      background: #007bff;
+      color: #ffffff;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.2s;
+    }
+    button.send-btn:hover { background: #0056b3; }
+    .post {
+      background: #ffffff;
+      padding: 18px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      position: relative;
+    }
+    .post-header {
+      font-size: 0.85em;
+      color: #777;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .post-name {
+      font-weight: bold;
+      color: #007bff;
+      font-size: 1.05em;
+    }
+    .post-content {
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .delete-btn {
+      background: #ff4d4f;
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8em;
+      transition: background 0.2s;
+    }
+    .delete-btn:hover { background: #d9363e; }
+  </style>
+</head>
+<body>
+
+  <h1>オンライン掲示板</h1>
+
+  <div class="form-box">
+    <input type="text" id="nameInput" placeholder="名前（名無しさん）">
+    <textarea id="messageInput" rows="3" placeholder="メッセージを入力..."></textarea>
+    <button id="sendBtn" class="send-btn">投稿する</button>
+  </div>
+
+  <div id="postsContainer">読み込み中...</div>
+
+  <!-- Firebase SDK の読み込み -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Firebaseの設定情報
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEFD5ZgSA9EWBYYjiNYmsN5qgoe4ba0S8",
+      authDomain: "net-keijiban.firebaseapp.com",
+      projectId: "net-keijiban",
+      storageBucket: "net-keijiban.firebasestorage.app",
+      messagingSenderId: "644361484122",
+      appId: "1:644361484122:web:430179a6b2df59aa262563"
+    };
+
+    // Firebase初期化
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const postsCollection = collection(db, "posts");
+
+    // 投稿機能
+    document.getElementById("sendBtn").addEventListener("click", async () => {
+      const name = document.getElementById("nameInput").value.trim() || "名無しさん";
+      const message = document.getElementById("messageInput").value.trim();
+
+      if (!message) {
+        alert("メッセージを入力してください");
+        return;
+      }
+
+      try {
+        await addDoc(postsCollection, {
+          name: name,
+          message: message,
+          createdAt: serverTimestamp()
+        });
+        document.getElementById("messageInput").value = "";
+      } catch (e) {
+        console.error("エラー: ", e);
+        alert("投稿に失敗しました");
+      }
+    });
+
+    // 削除機能（グローバル関数化）
+    window.deletePost = async (id) => {
+      if (confirm("この投稿を削除しますか？")) {
+        try {
+          await deleteDoc(doc(db, "posts", id));
+        } catch (e) {
+          console.error("削除エラー: ", e);
+          alert("削除に失敗しました");
+        }
+      }
+    };
+
+    // リアルタイム表示機能
+    const q = query(postsCollection, orderBy("createdAt", "desc"));
+    onSnapshot(q, (snapshot) => {
+      const container = document.getElementById("postsContainer");
+      container.innerHTML = "";
+
+      if (snapshot.empty) {
+        container.innerHTML = "<p style='text-align:center; color:#888;'>まだ投稿がありません。</p>";
+        return;
+      }
+
+      snapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        const id = docSnapshot.id;
+        const time = data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString() : "送信中...";
+
+        const postDiv = document.createElement("div");
+        postDiv.className = "post";
+        postDiv.innerHTML = `
+          <div class="post-header">
+            <div>
+              <span class="post-name">${escapeHtml(data.name)}</span>
+              <span style="margin-left: 8px;">${time}</span>
+            </div>
+            <button class="delete-btn" onclick="deletePost('${id}')">削除</button>
+          </div>
+          <div class="post-content">${escapeHtml(data.message)}</div>
+        `;
+        container.appendChild(postDiv);
+      });
+    });
+
+    // XSS対策
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+  </script>
+</body>
+</html>
