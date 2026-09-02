@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>爆速 2Dテニス</title>
+  <title>超高速 2Dテニス</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -27,6 +27,7 @@
       margin: 10px auto;
       max-width: 100%;
       height: auto;
+      touch-action: none; /* タッチでのスクロールを防止 */
     }
     .status {
       font-size: 18px;
@@ -86,8 +87,8 @@
 
     const paddleHeight = 80;
     const paddleWidth = 10;
-    const playerSpeed = 18; // 自機のスピードを超絶強化！
-    const cpuSpeed = 6;     // CPUも追従できるように少し調整
+    const playerSpeed = 18;
+    const cpuSpeed = 6;
     const WINNING_SCORE = 10;
 
     const keys = { up: false, down: false };
@@ -104,7 +105,7 @@
       if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = false;
     });
 
-    // タッチ/ボタン操作の即時応答処理
+    // ボタン操作の設定
     const upBtn = document.getElementById("upBtn");
     const downBtn = document.getElementById("downBtn");
 
@@ -121,6 +122,26 @@
     bindControl(upBtn, "up");
     bindControl(downBtn, "down");
 
+    // キャンバス上のダイレクトタッチ・ドラッグ操作
+    function handleTouchCanvas(e) {
+      if (isGameOver) {
+        restartGame();
+        return;
+      }
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      const touchY = touch.clientY - rect.top;
+      const scaleY = canvas.height / rect.height; // 表示サイズとの比率計算
+      
+      // 指の位置にラケットの中心を合わせる
+      p1Y = (touchY * scaleY) - (paddleHeight / 2);
+      p1Y = Math.max(0, Math.min(canvas.height - paddleHeight, p1Y));
+    }
+
+    canvas.addEventListener("touchstart", handleTouchCanvas, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchCanvas, { passive: false });
+
     canvas.addEventListener("click", () => {
       if (isGameOver) restartGame();
     });
@@ -128,7 +149,7 @@
     function update() {
       if (isGameOver) return;
 
-      // 自分の移動（爆速）
+      // キー/ボタン入力時の移動
       if (keys.up) p1Y = Math.max(0, p1Y - playerSpeed);
       if (keys.down) p1Y = Math.min(canvas.height - paddleHeight, p1Y + playerSpeed);
 
