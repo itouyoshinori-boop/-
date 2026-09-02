@@ -2,17 +2,19 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ソロプレイ・テニスゲーム</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>爆速 2Dテニス</title>
   <style>
+    * { box-sizing: border-box; }
     body {
-      background-color: #222;
+      background-color: #1a1a1a;
       color: #fff;
       font-family: sans-serif;
       text-align: center;
       margin: 0;
       padding: 10px;
       user-select: none;
+      touch-action: manipulation;
     }
     #gameContainer {
       display: inline-block;
@@ -36,25 +38,25 @@
       margin-top: 10px;
       display: flex;
       justify-content: center;
-      gap: 20px;
+      gap: 30px;
     }
     .btn {
-      width: 80px;
-      height: 60px;
-      font-size: 24px;
-      background: #444;
+      width: 110px;
+      height: 75px;
+      font-size: 32px;
+      background: #333;
       color: white;
       border: 2px solid #666;
-      border-radius: 8px;
+      border-radius: 12px;
       cursor: pointer;
-      touch-action: manipulation;
+      touch-action: none;
     }
-    .btn:active { background: #666; }
+    .btn:active { background: #00aaff; }
   </style>
 </head>
 <body>
 
-  <h1>ソロプレイ 2Dテニス</h1>
+  <h1>超高速 2Dテニス</h1>
   <div class="status" id="statusText">YOU（青） vs CPU（赤） [10点先取]</div>
   
   <div id="gameContainer">
@@ -75,87 +77,100 @@
     let cpuY = 160;
     let ballX = 300;
     let ballY = 200;
-    let ballVx = 5;
-    let ballVy = 5;
+    
+    let ballVx = 7;
+    let ballVy = 7;
     let scorePlayer = 0;
     let scoreCpu = 0;
     let isGameOver = false;
 
     const paddleHeight = 80;
     const paddleWidth = 10;
-    const cpuSpeed = 3.8;
-    const WINNING_SCORE = 10; // 10点で勝利
+    const playerSpeed = 18; // 自機のスピードを超絶強化！
+    const cpuSpeed = 6;     // CPUも追従できるように少し調整
+    const WINNING_SCORE = 10;
 
-    function moveUp() {
-      if (isGameOver) return;
-      p1Y = Math.max(0, p1Y - 25);
-    }
+    const keys = { up: false, down: false };
 
-    function moveDown() {
-      if (isGameOver) return;
-      p1Y = Math.min(canvas.height - paddleHeight, p1Y + 25);
-    }
-
+    // キーボード操作
     window.addEventListener("keydown", (e) => {
-      if (isGameOver && e.key === ' ') {
-        restartGame();
-        return;
-      }
-      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') moveUp();
-      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') moveDown();
+      if (isGameOver && e.key === ' ') { restartGame(); return; }
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = true;
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = true;
     });
 
-    document.getElementById("upBtn").addEventListener("click", moveUp);
-    document.getElementById("downBtn").addEventListener("click", moveDown);
+    window.addEventListener("keyup", (e) => {
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = false;
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = false;
+    });
+
+    // タッチ/ボタン操作の即時応答処理
+    const upBtn = document.getElementById("upBtn");
+    const downBtn = document.getElementById("downBtn");
+
+    const bindControl = (btn, dir) => {
+      const start = (e) => { if(e.cancelable) e.preventDefault(); keys[dir] = true; };
+      const end = (e) => { if(e.cancelable) e.preventDefault(); keys[dir] = false; };
+      btn.addEventListener("touchstart", start, { passive: false });
+      btn.addEventListener("touchend", end, { passive: false });
+      btn.addEventListener("mousedown", start);
+      btn.addEventListener("mouseup", end);
+      btn.addEventListener("mouseleave", end);
+    };
+
+    bindControl(upBtn, "up");
+    bindControl(downBtn, "down");
+
     canvas.addEventListener("click", () => {
       if (isGameOver) restartGame();
     });
 
-    function gameLoop() {
-      if (!isGameOver) {
-        // ボール移動
-        ballX += ballVx;
-        ballY += ballVy;
+    function update() {
+      if (isGameOver) return;
 
-        // 上下壁バウンド
-        if (ballY <= 0 || ballY >= canvas.height) {
-          ballVy *= -1;
-        }
+      // 自分の移動（爆速）
+      if (keys.up) p1Y = Math.max(0, p1Y - playerSpeed);
+      if (keys.down) p1Y = Math.min(canvas.height - paddleHeight, p1Y + playerSpeed);
 
-        // プレイヤー（左）打ち返し ＆ 速度少しアップ
-        if (ballX <= 20 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
-          ballVx = Math.abs(ballVx) * 1.1; // 1.1倍に加速
-          ballVy *= 1.1;
-        }
+      // ボール移動
+      ballX += ballVx;
+      ballY += ballVy;
 
-        // CPU（右）移動
-        const cpuCenter = cpuY + paddleHeight / 2;
-        if (cpuCenter < ballY - 10) {
-          cpuY = Math.min(canvas.height - paddleHeight, cpuY + cpuSpeed);
-        } else if (cpuCenter > ballY + 10) {
-          cpuY = Math.max(0, cpuY - cpuSpeed);
-        }
-
-        // CPU（右）打ち返し ＆ 速度少しアップ
-        if (ballX >= canvas.width - 20 && ballY >= cpuY && ballY <= cpuY + paddleHeight) {
-          ballVx = -Math.abs(ballVx) * 1.1; // 1.1倍に加速
-          ballVy *= 1.1;
-        }
-
-        // 得点判定
-        if (ballX <= 0) {
-          scoreCpu++;
-          checkWinCondition();
-          resetBall();
-        } else if (ballX >= canvas.width) {
-          scorePlayer++;
-          checkWinCondition();
-          resetBall();
-        }
+      // 上下壁バウンド
+      if (ballY <= 8 || ballY >= canvas.height - 8) {
+        ballVy *= -1;
       }
 
-      draw();
-      requestAnimationFrame(gameLoop);
+      // プレイヤー（左）打ち返し
+      if (ballX <= 20 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
+        ballVx = Math.abs(ballVx) * 1.08;
+        ballVy *= 1.08;
+      }
+
+      // CPU（右）移動
+      const cpuCenter = cpuY + paddleHeight / 2;
+      if (cpuCenter < ballY - 12) {
+        cpuY = Math.min(canvas.height - paddleHeight, cpuY + cpuSpeed);
+      } else if (cpuCenter > ballY + 12) {
+        cpuY = Math.max(0, cpuY - cpuSpeed);
+      }
+
+      // CPU（右）打ち返し
+      if (ballX >= canvas.width - 20 && ballY >= cpuY && ballY <= cpuY + paddleHeight) {
+        ballVx = -Math.abs(ballVx) * 1.08;
+        ballVy *= 1.08;
+      }
+
+      // 得点判定
+      if (ballX <= 0) {
+        scoreCpu++;
+        checkWinCondition();
+        resetBall();
+      } else if (ballX >= canvas.width) {
+        scorePlayer++;
+        checkWinCondition();
+        resetBall();
+      }
     }
 
     function checkWinCondition() {
@@ -171,9 +186,8 @@
     function resetBall() {
       ballX = 300;
       ballY = 200;
-      // 速度を初期値(5)に戻す
-      ballVx = (Math.random() > 0.5 ? 1 : -1) * 5;
-      ballVy = (Math.random() > 0.5 ? 1 : -1) * 5;
+      ballVx = (Math.random() > 0.5 ? 1 : -1) * 7;
+      ballVy = (Math.random() > 0.5 ? 1 : -1) * 7;
     }
 
     function restartGame() {
@@ -187,7 +201,6 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 中央線
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(canvas.width / 2, 0);
@@ -196,17 +209,16 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // スコア
       ctx.font = "32px sans-serif";
       ctx.fillStyle = "#fff";
       ctx.fillText(scorePlayer, 200, 50);
       ctx.fillText(scoreCpu, 380, 50);
 
-      // プレイヤー（左）
+      // プレイヤー（青）
       ctx.fillStyle = "#00aaff";
       ctx.fillRect(10, p1Y, paddleWidth, paddleHeight);
 
-      // CPU（右）
+      // CPU（赤）
       ctx.fillStyle = "#ff4444";
       ctx.fillRect(canvas.width - 20, cpuY, paddleWidth, paddleHeight);
 
@@ -216,9 +228,8 @@
       ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
       ctx.fill();
 
-      // 勝敗画面テキスト
       if (isGameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.font = "36px sans-serif";
@@ -234,7 +245,13 @@
       }
     }
 
-    gameLoop();
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
   </script>
 </body>
 </html>
