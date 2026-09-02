@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>超高速 2Dテニス（大ボール）</title>
+  <title>マイルドスピード 2Dテニス</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -57,7 +57,7 @@
 </head>
 <body>
 
-  <h1>超高速 2Dテニス</h1>
+  <h1>2Dテニス</h1>
   <div class="status" id="statusText">YOU（青） vs CPU（赤） [10点先取]</div>
   
   <div id="gameContainer">
@@ -165,17 +165,18 @@
     let ballX = 300;
     let ballY = 200;
     
-    let ballVx = 7;
-    let ballVy = 7;
+    // ボールのスピードを「5」へ少し抑えめ調整
+    let ballVx = 5;
+    let ballVy = 5;
     let scorePlayer = 0;
     let scoreCpu = 0;
     let isGameOver = false;
 
     const paddleHeight = 80;
     const paddleWidth = 10;
-    const ballRadius = 16; // ボールを2倍の大きさに変更
+    const ballRadius = 16;
     const playerSpeed = 18;
-    const cpuSpeed = 6;
+    const cpuSpeed = 5;
     const WINNING_SCORE = 10;
 
     const keys = { up: false, down: false };
@@ -251,16 +252,16 @@
       ballX += ballVx;
       ballY += ballVy;
 
-      // 上下壁バウンド音（ボールサイズを考慮）
+      // 上下壁バウンド
       if (ballY <= ballRadius || ballY >= canvas.height - ballRadius) {
         ballVy *= -1;
         playSound('wallHit');
       }
 
-      // プレイヤー（左）打ち返し
+      // プレイヤー（左）打ち返し（加速率を少しマイルドな1.05倍に変更）
       if (ballX - ballRadius <= 20 && ballY >= p1Y - ballRadius && ballY <= p1Y + paddleHeight + ballRadius) {
-        ballVx = Math.abs(ballVx) * 1.08;
-        ballVy *= 1.08;
+        ballVx = Math.abs(ballVx) * 1.05;
+        ballVy *= 1.05;
         playSound('playerHit');
       }
 
@@ -274,8 +275,8 @@
 
       // CPU（右）打ち返し
       if (ballX + ballRadius >= canvas.width - 20 && ballY >= cpuY - ballRadius && ballY <= cpuY + paddleHeight + ballRadius) {
-        ballVx = -Math.abs(ballVx) * 1.08;
-        ballVy *= 1.08;
+        ballVx = -Math.abs(ballVx) * 1.05;
+        ballVy *= 1.05;
         playSound('cpuHit');
       }
 
@@ -308,8 +309,9 @@
     function resetBall() {
       ballX = 300;
       ballY = 200;
-      ballVx = (Math.random() > 0.5 ? 1 : -1) * 7;
-      ballVy = (Math.random() > 0.5 ? 1 : -1) * 7;
+      // リセット時もマイルドな速度「5」で復帰
+      ballVx = (Math.random() > 0.5 ? 1 : -1) * 5;
+      ballVy = (Math.random() > 0.5 ? 1 : -1) * 5;
     }
 
     function restartGame() {
@@ -344,7 +346,7 @@
       ctx.fillStyle = "#ff4444";
       ctx.fillRect(canvas.width - 20, cpuY, paddleWidth, paddleHeight);
 
-      // ボール（でかいサイズ：16px）
+      // ボール
       ctx.fillStyle = "#ffff00";
       ctx.beginPath();
       ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
