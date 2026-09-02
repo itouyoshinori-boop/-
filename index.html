@@ -11,7 +11,8 @@
       font-family: sans-serif;
       text-align: center;
       margin: 0;
-      padding: 20px;
+      padding: 10px;
+      user-select: none;
     }
     #gameContainer {
       display: inline-block;
@@ -19,25 +20,45 @@
     }
     canvas {
       background: #000;
-      border: 4px solid #fff;
+      border: 3px solid #fff;
       display: block;
       margin: 10px auto;
+      max-width: 100%;
+      height: auto;
     }
     .status {
-      font-size: 18px;
-      margin-bottom: 10px;
-      color: #00ffcc;
-    }
-    button {
-      padding: 10px 20px;
       font-size: 16px;
-      background: #1a73e8;
+      margin-bottom: 8px;
+      color: #00ffcc;
+      font-weight: bold;
+    }
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .btn {
+      width: 80px;
+      height: 60px;
+      font-size: 24px;
+      background: #444;
+      color: white;
+      border: 2px solid #666;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .btn:active { background: #666; }
+    .reset-btn {
+      margin-top: 15px;
+      padding: 8px 16px;
+      background: #ff4444;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
     }
-    button:hover { background: #1557b0; }
   </style>
 </head>
 <body>
@@ -49,14 +70,20 @@
     <canvas id="gameCanvas" width="600" height="400"></canvas>
   </div>
 
-  <p>操作方法: PLAYER 1 = [W][S] キー | PLAYER 2 = [↑][↓] キー</p>
+  <!-- スマホ用タッチボタン -->
+  <div class="controls">
+    <button class="btn" id="upBtn">▲</button>
+    <button class="btn" id="downBtn">▼</button>
+  </div>
+
+  <button class="reset-btn" id="resetBtn">部屋をリセット</button>
 
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Firebase設定（プロジェクトの設定値に差し替えてください）
+    // Firebase設定（ご自身のAPIキー等に差し替えてください）
     const firebaseConfig = {
       apiKey: "AIzaSyDummyKeyForNetKeijiban",
       authDomain: "net-keijiban.firebaseapp.com",
@@ -74,116 +101,107 @@
     const ctx = canvas.getContext("2d");
     const statusEl = document.getElementById("status");
 
-    let playerRole = null; // 'p1' または 'p2'
-    let gameState = {
-      p1Y: 160,
-      p2Y: 160,
-      ballX: 300,
-      ballY: 200,
-      ballVx: 4,
-      ballVy: 4,
-      score1: 0,
-      score2: 0,
-      p1Online: false,
-      p2Online: false
+    let playerRole = null;
+    const initialGameState = {
+      p1Y: 160, p2Y: 160,
+      ballX: 300, ballY: 200,
+      ballVx: 4, ballVy: 4,
+      score1: 0, score2: 0,
+      p1Online: false, p2Online: false
     };
+    let gameState = { ...initialGameState };
 
     const paddleHeight = 80;
     const paddleWidth = 10;
 
-    // ゲームルームへの参加
     async function joinGame() {
       onSnapshot(gameRef, (snapshot) => {
         if (snapshot.exists()) {
-          const data = snapshot.data();
-          gameState = { ...gameState, ...data };
+          gameState = { ...gameState, ...snapshot.data() };
           draw();
         } else {
-          // 初期化
-          setDoc(gameRef, gameState);
+          setDoc(gameRef, initialGameState);
         }
       });
 
-      // 空いている枠に入る
       setTimeout(async () => {
         if (!gameState.p1Online) {
           playerRole = 'p1';
           await updateDoc(gameRef, { p1Online: true });
-          statusEl.textContent = "あなたは PLAYER 1（左・W/Sキー）です。対戦相手を待っています...";
+          statusEl.textContent = "あなたは PLAYER 1（左）です。対戦相手を待っています...";
         } else if (!gameState.p2Online) {
           playerRole = 'p2';
           await updateDoc(gameRef, { p2Online: true });
-          statusEl.textContent = "あなたは PLAYER 2（右・上下キー）です。対戦開始！";
+          statusEl.textContent = "あなたは PLAYER 2（右）です。対戦開始！";
         } else {
           statusEl.textContent = "満員です（観戦モード）";
         }
       }, 1000);
     }
 
-    // キー操作の検知
-    window.addEventListener("keydown", (e) => {
+    function moveUp() {
       if (!playerRole) return;
-
       if (playerRole === 'p1') {
-        if (e.key === 'w' || e.key === 'W') gameState.p1Y = Math.max(0, gameState.p1Y - 15);
-        if (e.key === 's' || e.key === 'S') gameState.p1Y = Math.min(canvas.height - paddleHeight, gameState.p1Y + 15);
+        gameState.p1Y = Math.max(0, gameState.p1Y - 20);
         updateDoc(gameRef, { p1Y: gameState.p1Y });
-      }
-
-      if (playerRole === 'p2') {
-        if (e.key === 'ArrowUp') gameState.p2Y = Math.max(0, gameState.p2Y - 15);
-        if (e.key === 'ArrowDown') gameState.p2Y = Math.min(canvas.height - paddleHeight, gameState.p2Y + 15);
+      } else if (playerRole === 'p2') {
+        gameState.p2Y = Math.max(0, gameState.p2Y - 20);
         updateDoc(gameRef, { p2Y: gameState.p2Y });
       }
+    }
+
+    function moveDown() {
+      if (!playerRole) return;
+      if (playerRole === 'p1') {
+        gameState.p1Y = Math.min(canvas.height - paddleHeight, gameState.p1Y + 20);
+        updateDoc(gameRef, { p1Y: gameState.p1Y });
+      } else if (playerRole === 'p2') {
+        gameState.p2Y = Math.min(canvas.height - paddleHeight, gameState.p2Y + 20);
+        updateDoc(gameRef, { p2Y: gameState.p2Y });
+      }
+    }
+
+    // キーボード＆ボタンイベント
+    window.addEventListener("keydown", (e) => {
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') moveUp();
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') moveDown();
     });
 
-    // P1がメインでボールの計算を同期処理する
+    document.getElementById("upBtn").addEventListener("click", moveUp);
+    document.getElementById("downBtn").addEventListener("click", moveDown);
+
+    document.getElementById("resetBtn").addEventListener("click", async () => {
+      await setDoc(gameRef, initialGameState);
+      location.reload();
+    });
+
+    // ボール計算（P1メイン）
     setInterval(() => {
       if (playerRole === 'p1' && gameState.p1Online && gameState.p2Online) {
         let bx = gameState.ballX + gameState.ballVx;
         let by = gameState.ballY + gameState.ballVy;
 
-        // 上下壁バウンド
         if (by <= 0 || by >= canvas.height) gameState.ballVy *= -1;
 
-        // P1ラケット判定
-        if (bx <= 20 && by >= gameState.p1Y && by <= gameState.p1Y + paddleHeight) {
-          gameState.ballVx *= -1;
-        }
+        if (bx <= 20 && by >= gameState.p1Y && by <= gameState.p1Y + paddleHeight) gameState.ballVx *= -1;
+        if (bx >= canvas.width - 20 && by >= gameState.p2Y && by <= gameState.p2Y + paddleHeight) gameState.ballVx *= -1;
 
-        // P2ラケット判定
-        if (bx >= canvas.width - 20 && by >= gameState.p2Y && by <= gameState.p2Y + paddleHeight) {
-          gameState.ballVx *= -1;
-        }
-
-        // 得点判定
-        if (bx <= 0) {
-          gameState.score2++;
-          bx = 300; by = 200;
-        } else if (bx >= canvas.width) {
-          gameState.score1++;
-          bx = 300; by = 200;
-        }
+        if (bx <= 0) { gameState.score2++; bx = 300; by = 200; }
+        else if (bx >= canvas.width) { gameState.score1++; bx = 300; by = 200; }
 
         gameState.ballX = bx;
         gameState.ballY = by;
 
         updateDoc(gameRef, {
-          ballX: bx,
-          ballY: by,
-          ballVx: gameState.ballVx,
-          ballVy: gameState.ballVy,
-          score1: gameState.score1,
-          score2: gameState.score2
+          ballX: bx, ballY: by,
+          ballVx: gameState.ballVx, ballVy: gameState.ballVy,
+          score1: gameState.score1, score2: gameState.score2
         });
       }
     }, 30);
 
-    // 描画処理
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // コート中央線
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(canvas.width / 2, 0);
@@ -192,20 +210,17 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // スコア
       ctx.font = "32px sans-serif";
+      ctx.fillStyle = "#fff";
       ctx.fillText(gameState.score1, 200, 50);
       ctx.fillText(gameState.score2, 380, 50);
 
-      // P1（左ラケット）
       ctx.fillStyle = "#00aaff";
       ctx.fillRect(10, gameState.p1Y, paddleWidth, paddleHeight);
 
-      // P2（右ラケット）
       ctx.fillStyle = "#ff4444";
       ctx.fillRect(canvas.width - 20, gameState.p2Y, paddleWidth, paddleHeight);
 
-      // ボール
       ctx.fillStyle = "#ffff00";
       ctx.beginPath();
       ctx.arc(gameState.ballX, gameState.ballY, 8, 0, Math.PI * 2);
