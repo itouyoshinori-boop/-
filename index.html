@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>超高速 2Dテニス（効果音付き）</title>
+  <title>超高速 2Dテニス（大ボール）</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -91,7 +91,7 @@
 
       const now = audioCtx.currentTime;
 
-      if (type === 'playerHit') { // 自機ヒット（高いピコッ音）
+      if (type === 'playerHit') {
         osc.type = 'square';
         osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
@@ -99,7 +99,7 @@
         gain.gain.linearRampToValueAtTime(0, now + 0.08);
         osc.start(now);
         osc.stop(now + 0.08);
-      } else if (type === 'cpuHit') { // CPUヒット（低いポコッ音）
+      } else if (type === 'cpuHit') {
         osc.type = 'square';
         osc.frequency.setValueAtTime(400, now);
         osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
@@ -107,22 +107,22 @@
         gain.gain.linearRampToValueAtTime(0, now + 0.08);
         osc.start(now);
         osc.stop(now + 0.08);
-      } else if (type === 'wallHit') { // 壁バウンド（コンッ音）
+      } else if (type === 'wallHit') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(300, now);
         gain.gain.setValueAtTime(0.15, now);
         gain.gain.linearRampToValueAtTime(0, now + 0.05);
         osc.start(now);
         osc.stop(now + 0.05);
-      } else if (type === 'scorePlayer') { // 得点（ピロリン♪）
+      } else if (type === 'scorePlayer') {
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, now); // C5
-        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.08);
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.linearRampToValueAtTime(0, now + 0.25);
         osc.start(now);
         osc.stop(now + 0.25);
-      } else if (type === 'scoreCpu') { // 失点（ブッ音）
+      } else if (type === 'scoreCpu') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, now);
         osc.frequency.linearRampToValueAtTime(80, now + 0.2);
@@ -130,7 +130,7 @@
         gain.gain.linearRampToValueAtTime(0, now + 0.2);
         osc.start(now);
         osc.stop(now + 0.2);
-      } else if (type === 'clear') { // 勝利（ファンファーレ）
+      } else if (type === 'clear') {
         const notes = [523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, idx) => {
           const o = audioCtx.createOscillator();
@@ -143,7 +143,7 @@
           o.start(now + idx * 0.12);
           o.stop(now + idx * 0.12 + 0.25);
         });
-      } else if (type === 'over') { // 敗北（メロディ）
+      } else if (type === 'over') {
         const notes = [400, 350, 300, 250];
         notes.forEach((freq, idx) => {
           const o = audioCtx.createOscillator();
@@ -173,6 +173,7 @@
 
     const paddleHeight = 80;
     const paddleWidth = 10;
+    const ballRadius = 16; // ボールを2倍の大きさに変更
     const playerSpeed = 18;
     const cpuSpeed = 6;
     const WINNING_SCORE = 10;
@@ -192,7 +193,7 @@
       if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = false;
     });
 
-    // ボタン操作の設定
+    // ボタン操作
     const upBtn = document.getElementById("upBtn");
     const downBtn = document.getElementById("downBtn");
 
@@ -250,14 +251,14 @@
       ballX += ballVx;
       ballY += ballVy;
 
-      // 上下壁バウンド音
-      if (ballY <= 8 || ballY >= canvas.height - 8) {
+      // 上下壁バウンド音（ボールサイズを考慮）
+      if (ballY <= ballRadius || ballY >= canvas.height - ballRadius) {
         ballVy *= -1;
         playSound('wallHit');
       }
 
-      // プレイヤー（左）打ち返し音
-      if (ballX <= 20 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
+      // プレイヤー（左）打ち返し
+      if (ballX - ballRadius <= 20 && ballY >= p1Y - ballRadius && ballY <= p1Y + paddleHeight + ballRadius) {
         ballVx = Math.abs(ballVx) * 1.08;
         ballVy *= 1.08;
         playSound('playerHit');
@@ -271,14 +272,14 @@
         cpuY = Math.max(0, cpuY - cpuSpeed);
       }
 
-      // CPU（右）打ち返し音
-      if (ballX >= canvas.width - 20 && ballY >= cpuY && ballY <= cpuY + paddleHeight) {
+      // CPU（右）打ち返し
+      if (ballX + ballRadius >= canvas.width - 20 && ballY >= cpuY - ballRadius && ballY <= cpuY + paddleHeight + ballRadius) {
         ballVx = -Math.abs(ballVx) * 1.08;
         ballVy *= 1.08;
         playSound('cpuHit');
       }
 
-      // 得点判定＆効果音
+      // 得点判定
       if (ballX <= 0) {
         scoreCpu++;
         playSound('scoreCpu');
@@ -335,15 +336,18 @@
       ctx.fillText(scorePlayer, 200, 50);
       ctx.fillText(scoreCpu, 380, 50);
 
+      // プレイヤー（青）
       ctx.fillStyle = "#00aaff";
       ctx.fillRect(10, p1Y, paddleWidth, paddleHeight);
 
+      // CPU（赤）
       ctx.fillStyle = "#ff4444";
       ctx.fillRect(canvas.width - 20, cpuY, paddleWidth, paddleHeight);
 
+      // ボール（でかいサイズ：16px）
       ctx.fillStyle = "#ffff00";
       ctx.beginPath();
-      ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
+      ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
       ctx.fill();
 
       if (isGameOver) {
