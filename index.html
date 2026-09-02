@@ -3,103 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>リアルタイムオンライン掲示板</title>
+  <title>オンラインリアルタイムテニス</title>
   <style>
-    * { box-sizing: border-box; }
     body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      max-width: 650px;
-      margin: 30px auto;
-      padding: 0 15px;
-      background: #f0f2f5;
-      color: #333;
-    }
-    h1 { text-align: center; color: #1a73e8; }
-    .form-container {
-      background: #fff;
+      background-color: #222;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
     }
-    input, textarea {
-      width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      margin-bottom: 15px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      background-color: #1a73e8;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    button:hover { background-color: #1557b0; }
-    .post {
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 12px;
+    #gameContainer {
+      display: inline-block;
       position: relative;
     }
-    .post-header {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #777;
-      margin-bottom: 8px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 5px;
+    canvas {
+      background: #000;
+      border: 4px solid #fff;
+      display: block;
+      margin: 10px auto;
     }
-    .post-name { font-weight: bold; color: #333; }
-    .post-body { font-size: 15px; line-height: 1.5; white-space: pre-wrap; }
-    .delete-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: #ff4d4f;
+    .status {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #00ffcc;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #1a73e8;
       color: white;
       border: none;
       border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 11px;
       cursor: pointer;
-      width: auto;
     }
-    .delete-btn:hover { background: #d9363e; }
+    button:hover { background: #1557b0; }
   </style>
 </head>
 <body>
 
-  <h1>オンライン掲示板</h1>
-
-  <div class="form-container">
-    <label for="nameInput">お名前</label>
-    <input type="text" id="nameInput" placeholder="名無しさん">
-
-    <label for="messageInput">メッセージ</label>
-    <textarea id="messageInput" rows="3" placeholder="投稿内容を入力してください..."></textarea>
-
-    <button id="submitBtn">投稿する</button>
+  <h1>オンライン2Dテニス</h1>
+  <div id="status" class="status">接続中...</div>
+  
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
   </div>
 
-  <div id="postsContainer"></div>
+  <p>操作方法: PLAYER 1 = [W][S] キー | PLAYER 2 = [↑][↓] キー</p>
 
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Firebase設定
+    // Firebase設定（プロジェクトの設定値に差し替えてください）
     const firebaseConfig = {
       apiKey: "AIzaSyDummyKeyForNetKeijiban",
       authDomain: "net-keijiban.firebaseapp.com",
@@ -111,75 +68,151 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const postsRef = collection(db, "posts");
+    const gameRef = doc(db, "games", "tennis_room");
 
-    const submitBtn = document.getElementById("submitBtn");
-    const nameInput = document.getElementById("nameInput");
-    const messageInput = document.getElementById("messageInput");
-    const postsContainer = document.getElementById("postsContainer");
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
 
-    // 投稿機能
-    submitBtn.addEventListener("click", async () => {
-      const name = nameInput.value.trim() || "名無しさん";
-      const message = messageInput.value.trim();
-
-      if (!message) {
-        alert("メッセージを入力してください");
-        return;
-      }
-
-      try {
-        await addDoc(postsRef, {
-          name: name,
-          message: message,
-          createdAt: serverTimestamp()
-        });
-        messageInput.value = "";
-      } catch (e) {
-        console.error("エラーが発生しました: ", e);
-        alert("投稿に失敗しました。");
-      }
-    });
-
-    // リアルタイム取得・表示
-    const q = query(postsRef, orderBy("createdAt", "desc"));
-    onSnapshot(q, (snapshot) => {
-      postsContainer.innerHTML = "";
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const id = docSnap.id;
-        const date = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : "送信中...";
-
-        const postEl = document.createElement("div");
-        postEl.className = "post";
-        postEl.innerHTML = `
-          <div class="post-header">
-            <span class="post-name">${escapeHtml(data.name)}</span>
-            <span>${date}</span>
-          </div>
-          <div class="post-body">${escapeHtml(data.message)}</div>
-          <button class="delete-btn" onclick="deletePost('${id}')">削除</button>
-        `;
-        postsContainer.appendChild(postEl);
-      });
-    });
-
-    // 削除機能
-    window.deletePost = async (id) => {
-      if (confirm("本当に削除しますか？")) {
-        try {
-          await deleteDoc(doc(db, "posts", id));
-        } catch (e) {
-          console.error("削除エラー: ", e);
-          alert("削除に失敗しました。");
-        }
-      }
+    let playerRole = null; // 'p1' または 'p2'
+    let gameState = {
+      p1Y: 160,
+      p2Y: 160,
+      ballX: 300,
+      ballY: 200,
+      ballVx: 4,
+      ballVy: 4,
+      score1: 0,
+      score2: 0,
+      p1Online: false,
+      p2Online: false
     };
 
-    function escapeHtml(str) {
-      if (!str) return "";
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const paddleHeight = 80;
+    const paddleWidth = 10;
+
+    // ゲームルームへの参加
+    async function joinGame() {
+      onSnapshot(gameRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          gameState = { ...gameState, ...data };
+          draw();
+        } else {
+          // 初期化
+          setDoc(gameRef, gameState);
+        }
+      });
+
+      // 空いている枠に入る
+      setTimeout(async () => {
+        if (!gameState.p1Online) {
+          playerRole = 'p1';
+          await updateDoc(gameRef, { p1Online: true });
+          statusEl.textContent = "あなたは PLAYER 1（左・W/Sキー）です。対戦相手を待っています...";
+        } else if (!gameState.p2Online) {
+          playerRole = 'p2';
+          await updateDoc(gameRef, { p2Online: true });
+          statusEl.textContent = "あなたは PLAYER 2（右・上下キー）です。対戦開始！";
+        } else {
+          statusEl.textContent = "満員です（観戦モード）";
+        }
+      }, 1000);
     }
+
+    // キー操作の検知
+    window.addEventListener("keydown", (e) => {
+      if (!playerRole) return;
+
+      if (playerRole === 'p1') {
+        if (e.key === 'w' || e.key === 'W') gameState.p1Y = Math.max(0, gameState.p1Y - 15);
+        if (e.key === 's' || e.key === 'S') gameState.p1Y = Math.min(canvas.height - paddleHeight, gameState.p1Y + 15);
+        updateDoc(gameRef, { p1Y: gameState.p1Y });
+      }
+
+      if (playerRole === 'p2') {
+        if (e.key === 'ArrowUp') gameState.p2Y = Math.max(0, gameState.p2Y - 15);
+        if (e.key === 'ArrowDown') gameState.p2Y = Math.min(canvas.height - paddleHeight, gameState.p2Y + 15);
+        updateDoc(gameRef, { p2Y: gameState.p2Y });
+      }
+    });
+
+    // P1がメインでボールの計算を同期処理する
+    setInterval(() => {
+      if (playerRole === 'p1' && gameState.p1Online && gameState.p2Online) {
+        let bx = gameState.ballX + gameState.ballVx;
+        let by = gameState.ballY + gameState.ballVy;
+
+        // 上下壁バウンド
+        if (by <= 0 || by >= canvas.height) gameState.ballVy *= -1;
+
+        // P1ラケット判定
+        if (bx <= 20 && by >= gameState.p1Y && by <= gameState.p1Y + paddleHeight) {
+          gameState.ballVx *= -1;
+        }
+
+        // P2ラケット判定
+        if (bx >= canvas.width - 20 && by >= gameState.p2Y && by <= gameState.p2Y + paddleHeight) {
+          gameState.ballVx *= -1;
+        }
+
+        // 得点判定
+        if (bx <= 0) {
+          gameState.score2++;
+          bx = 300; by = 200;
+        } else if (bx >= canvas.width) {
+          gameState.score1++;
+          bx = 300; by = 200;
+        }
+
+        gameState.ballX = bx;
+        gameState.ballY = by;
+
+        updateDoc(gameRef, {
+          ballX: bx,
+          ballY: by,
+          ballVx: gameState.ballVx,
+          ballVy: gameState.ballVy,
+          score1: gameState.score1,
+          score2: gameState.score2
+        });
+      }
+    }, 30);
+
+    // 描画処理
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // コート中央線
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // スコア
+      ctx.font = "32px sans-serif";
+      ctx.fillText(gameState.score1, 200, 50);
+      ctx.fillText(gameState.score2, 380, 50);
+
+      // P1（左ラケット）
+      ctx.fillStyle = "#00aaff";
+      ctx.fillRect(10, gameState.p1Y, paddleWidth, paddleHeight);
+
+      // P2（右ラケット）
+      ctx.fillStyle = "#ff4444";
+      ctx.fillRect(canvas.width - 20, gameState.p2Y, paddleWidth, paddleHeight);
+
+      // ボール
+      ctx.fillStyle = "#ffff00";
+      ctx.beginPath();
+      ctx.arc(gameState.ballX, gameState.ballY, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    joinGame();
   </script>
 </body>
 </html>
