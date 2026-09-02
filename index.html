@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>超高速 2Dテニス</title>
+  <title>超高速 2Dテニス（効果音付き）</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -27,7 +27,7 @@
       margin: 10px auto;
       max-width: 100%;
       height: auto;
-      touch-action: none; /* タッチでのスクロールを防止 */
+      touch-action: none;
     }
     .status {
       font-size: 18px;
@@ -74,6 +74,92 @@
     const ctx = canvas.getContext("2d");
     const statusText = document.getElementById("statusText");
 
+    // --- 効果音生成（Web Audio API） ---
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSound(type) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'playerHit') { // 自機ヒット（高いピコッ音）
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'cpuHit') { // CPUヒット（低いポコッ音）
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'wallHit') { // 壁バウンド（コンッ音）
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } else if (type === 'scorePlayer') { // 得点（ピロリン♪）
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'scoreCpu') { // 失点（ブッ音）
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(80, now + 0.2);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      } else if (type === 'clear') { // 勝利（ファンファーレ）
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          o.connect(g); g.connect(audioCtx.destination);
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(freq, now + idx * 0.12);
+          g.gain.setValueAtTime(0.25, now + idx * 0.12);
+          g.gain.linearRampToValueAtTime(0, now + idx * 0.12 + 0.25);
+          o.start(now + idx * 0.12);
+          o.stop(now + idx * 0.12 + 0.25);
+        });
+      } else if (type === 'over') { // 敗北（メロディ）
+        const notes = [400, 350, 300, 250];
+        notes.forEach((freq, idx) => {
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          o.connect(g); g.connect(audioCtx.destination);
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(freq, now + idx * 0.15);
+          g.gain.setValueAtTime(0.2, now + idx * 0.15);
+          g.gain.linearRampToValueAtTime(0, now + idx * 0.15 + 0.3);
+          o.start(now + idx * 0.15);
+          o.stop(now + idx * 0.15 + 0.3);
+        });
+      }
+    }
+
+    // --- ゲーム変数 ---
     let p1Y = 160;
     let cpuY = 160;
     let ballX = 300;
@@ -95,6 +181,7 @@
 
     // キーボード操作
     window.addEventListener("keydown", (e) => {
+      initAudio();
       if (isGameOver && e.key === ' ') { restartGame(); return; }
       if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = true;
       if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = true;
@@ -110,8 +197,15 @@
     const downBtn = document.getElementById("downBtn");
 
     const bindControl = (btn, dir) => {
-      const start = (e) => { if(e.cancelable) e.preventDefault(); keys[dir] = true; };
-      const end = (e) => { if(e.cancelable) e.preventDefault(); keys[dir] = false; };
+      const start = (e) => { 
+        initAudio();
+        if(e.cancelable) e.preventDefault(); 
+        keys[dir] = true; 
+      };
+      const end = (e) => { 
+        if(e.cancelable) e.preventDefault(); 
+        keys[dir] = false; 
+      };
       btn.addEventListener("touchstart", start, { passive: false });
       btn.addEventListener("touchend", end, { passive: false });
       btn.addEventListener("mousedown", start);
@@ -122,8 +216,9 @@
     bindControl(upBtn, "up");
     bindControl(downBtn, "down");
 
-    // キャンバス上のダイレクトタッチ・ドラッグ操作
+    // タッチ・ドラッグ操作
     function handleTouchCanvas(e) {
+      initAudio();
       if (isGameOver) {
         restartGame();
         return;
@@ -132,9 +227,8 @@
       const rect = canvas.getBoundingClientRect();
       const touch = e.touches[0];
       const touchY = touch.clientY - rect.top;
-      const scaleY = canvas.height / rect.height; // 表示サイズとの比率計算
+      const scaleY = canvas.height / rect.height;
       
-      // 指の位置にラケットの中心を合わせる
       p1Y = (touchY * scaleY) - (paddleHeight / 2);
       p1Y = Math.max(0, Math.min(canvas.height - paddleHeight, p1Y));
     }
@@ -143,29 +237,30 @@
     canvas.addEventListener("touchmove", handleTouchCanvas, { passive: false });
 
     canvas.addEventListener("click", () => {
+      initAudio();
       if (isGameOver) restartGame();
     });
 
     function update() {
       if (isGameOver) return;
 
-      // キー/ボタン入力時の移動
       if (keys.up) p1Y = Math.max(0, p1Y - playerSpeed);
       if (keys.down) p1Y = Math.min(canvas.height - paddleHeight, p1Y + playerSpeed);
 
-      // ボール移動
       ballX += ballVx;
       ballY += ballVy;
 
-      // 上下壁バウンド
+      // 上下壁バウンド音
       if (ballY <= 8 || ballY >= canvas.height - 8) {
         ballVy *= -1;
+        playSound('wallHit');
       }
 
-      // プレイヤー（左）打ち返し
+      // プレイヤー（左）打ち返し音
       if (ballX <= 20 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
         ballVx = Math.abs(ballVx) * 1.08;
         ballVy *= 1.08;
+        playSound('playerHit');
       }
 
       // CPU（右）移動
@@ -176,19 +271,22 @@
         cpuY = Math.max(0, cpuY - cpuSpeed);
       }
 
-      // CPU（右）打ち返し
+      // CPU（右）打ち返し音
       if (ballX >= canvas.width - 20 && ballY >= cpuY && ballY <= cpuY + paddleHeight) {
         ballVx = -Math.abs(ballVx) * 1.08;
         ballVy *= 1.08;
+        playSound('cpuHit');
       }
 
-      // 得点判定
+      // 得点判定＆効果音
       if (ballX <= 0) {
         scoreCpu++;
+        playSound('scoreCpu');
         checkWinCondition();
         resetBall();
       } else if (ballX >= canvas.width) {
         scorePlayer++;
+        playSound('scorePlayer');
         checkWinCondition();
         resetBall();
       }
@@ -198,9 +296,11 @@
       if (scorePlayer >= WINNING_SCORE) {
         isGameOver = true;
         statusText.textContent = "🎉 GAME CLEAR! あなたの勝ちです！";
+        playSound('clear');
       } else if (scoreCpu >= WINNING_SCORE) {
         isGameOver = true;
         statusText.textContent = "💀 GAME OVER... CPUの勝ちです";
+        playSound('over');
       }
     }
 
@@ -235,15 +335,12 @@
       ctx.fillText(scorePlayer, 200, 50);
       ctx.fillText(scoreCpu, 380, 50);
 
-      // プレイヤー（青）
       ctx.fillStyle = "#00aaff";
       ctx.fillRect(10, p1Y, paddleWidth, paddleHeight);
 
-      // CPU（赤）
       ctx.fillStyle = "#ff4444";
       ctx.fillRect(canvas.width - 20, cpuY, paddleWidth, paddleHeight);
 
-      // ボール
       ctx.fillStyle = "#ffff00";
       ctx.beginPath();
       ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
