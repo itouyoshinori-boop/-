@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>マイルドスピード 2Dテニス</title>
+  <title>ゆったり 2Dテニス</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -165,9 +165,9 @@
     let ballX = 300;
     let ballY = 200;
     
-    // ボールのスピードを「5」へ少し抑えめ調整
-    let ballVx = 5;
-    let ballVy = 5;
+    // ボールのスピードを「3」まで超低速化
+    let ballVx = 3;
+    let ballVy = 3;
     let scorePlayer = 0;
     let scoreCpu = 0;
     let isGameOver = false;
@@ -176,7 +176,7 @@
     const paddleWidth = 10;
     const ballRadius = 16;
     const playerSpeed = 18;
-    const cpuSpeed = 5;
+    const cpuSpeed = 3.5; // CPUの動きもボールに合わせてゆったりに
     const WINNING_SCORE = 10;
 
     const keys = { up: false, down: false };
@@ -258,10 +258,10 @@
         playSound('wallHit');
       }
 
-      // プレイヤー（左）打ち返し（加速率を少しマイルドな1.05倍に変更）
+      // プレイヤー（左）打ち返し（加速をほぼゼロの1.02倍へ）
       if (ballX - ballRadius <= 20 && ballY >= p1Y - ballRadius && ballY <= p1Y + paddleHeight + ballRadius) {
-        ballVx = Math.abs(ballVx) * 1.05;
-        ballVy *= 1.05;
+        ballVx = Math.abs(ballVx) * 1.02;
+        ballVy *= 1.02;
         playSound('playerHit');
       }
 
@@ -275,8 +275,8 @@
 
       // CPU（右）打ち返し
       if (ballX + ballRadius >= canvas.width - 20 && ballY >= cpuY - ballRadius && ballY <= cpuY + paddleHeight + ballRadius) {
-        ballVx = -Math.abs(ballVx) * 1.05;
-        ballVy *= 1.05;
+        ballVx = -Math.abs(ballVx) * 1.02;
+        ballVy *= 1.02;
         playSound('cpuHit');
       }
 
@@ -309,9 +309,9 @@
     function resetBall() {
       ballX = 300;
       ballY = 200;
-      // リセット時もマイルドな速度「5」で復帰
-      ballVx = (Math.random() > 0.5 ? 1 : -1) * 5;
-      ballVy = (Math.random() > 0.5 ? 1 : -1) * 5;
+      // 超低速スピード「3」で再開
+      ballVx = (Math.random() > 0.5 ? 1 : -1) * 3;
+      ballVy = (Math.random() > 0.5 ? 1 : -1) * 3;
     }
 
     function restartGame() {
